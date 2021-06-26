@@ -1,6 +1,7 @@
 import requests
 import asyncio
 import hashlib
+import random
 import urllib
 import time
 import json
@@ -522,7 +523,7 @@ def http_test(keys):
 
   return _request("http_test", keys=keys)
 
-def _request(path, args={}, body={}, keys=None):
+def _request(path, args={}, body={}, keys=None, iteration=1):
   """
   Fetches the given path in the Kuna API.
 
@@ -541,21 +542,40 @@ def _request(path, args={}, body={}, keys=None):
   """
 
   # if parameters for GET method available then we add them to the path
+  fullpath = path
   if args:
-    path += "?" + urllib.parse.urlencode(args)
+    fullpath += "?" + urllib.parse.urlencode(args)
 
+  uas = [
+    "{}7.36{}) Chrome/81.0.4044.92 Safari/537.36",
+    "{}7.36{}) Chrome/44.0.2403.157 Safari/537.36",
+    "{}7.36{}) Chrome/80.0.3987.87 Safari/537.36",
+    "{}7.36{}) Chrome/76.0.3809.132 Safari/537.36",
+    "{}7.36{}) Chrome/64.0.3282.24 Safari/537.36",
+    "{}7.36{}) Chrome/72.0.3626.121 Safari/537.36",
+    "{}4.24{}) Chrome/11.0.696.3 Safari/534.24",
+    "{}7.36{}) Chrome/42.0.2311.135 Safari/537.36",
+    "{}7.36{}; Google Web Preview) Chrome/27.0.1453 Safari/537.36",
+    "{}7.36{}) Chrome/77.0.3865.120 Safari/537.36",
+    "{}7.36{}; Google Web Preview) Chrome/41.0.2272.118 Safari/537.36",
+    "{}7.36{}) Chrome/69.0.3497.12 Safari/537.36",
+    "{}7.36{}) Chrome/60.0.3112.101 Safari/537.36"
+  ]
+  useragent = uas[int(len(uas)*random.random())].format(
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/53",
+    " (KHTML, like Gecko"
+  )
   # default part of the header
   headers = {
     "accept": "application/json",
-    "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, "\
-                  "like Gecko) Chrome/81.0.4044.92 Safari/537.36",
+    "user-agent": useragent,
   }
 
   # if body for POST method is present than we add required field to the headers
   if body:
     headers["content-type"] = "application/json"
   # and convert them to the JSON
-  body = json.dumps(body)
+  jbody = json.dumps(body)
 
   if keys:
     # _check_keys(error=True)
@@ -564,15 +584,17 @@ def _request(path, args={}, body={}, keys=None):
     headers["kun-apikey"] = keys["public"]
     headers["kun-signature"] = hmac.new(
       keys["private"].encode("ascii"),
-      f"{DOMAIN[-4:]}{path}{nonce}{body}".encode("ascii"),
+      f"{DOMAIN[-4:]}{fullpath}{nonce}{jbody}".encode("ascii"),
       hashlib.sha384
     ).hexdigest()
 
   try:
-    req = urllib.request.Request(DOMAIN + path, body.encode(), headers,
+    req = urllib.request.Request(DOMAIN + fullpath, jbody.encode(), headers,
       method=("POST" if keys else "GET"))
     json_resp = json.load(urllib.request.urlopen(req))
   except Exception as e:
-    print(e)
+    print(f"{e}. But we will wait for a second and try again. Fail #{iteration}.")
+    time.sleep(0.1)
+    return _request(path=path, args=args, body=body, keys=keys, iteration=iteration+1)
   else:
     return json_resp
