@@ -1,8 +1,6 @@
 import requests
-import asyncio
 import hashlib
 import random
-import urllib
 import time
 import json
 import hmac
@@ -528,9 +526,9 @@ def _request(path, args={}, body={}, keys=None, iteration=1):
   Fetches the given path in the Kuna API.
 
   Arguments:
-    path (str) : Api path
-    args (dict): args of GET-request
-    body (dict): body of request
+    path (str) : API path
+    args (dict): arguments for a GET request
+    body (dict): body of a POST request
 
   Optional arguments:
     keys (dict): {
@@ -538,63 +536,60 @@ def _request(path, args={}, body={}, keys=None, iteration=1):
       "public" : ""
     }
 
-  :return: Serialized server response or error
+  Returns: serialized server's response
   """
+  def _getUserAgent():
 
-  # if parameters for GET method available then we add them to the path
-  fullpath = path
-  if args:
-    fullpath += "?" + urllib.parse.urlencode(args)
+    uas = [
+      "{}4.24{}) Chrome/11.0.696.3 Safari/534.24",
+      "{}7.36{}; Google Web Preview) Chrome/27.0.1453 Safari/537.36",
+      "{}7.36{}; Google Web Preview) Chrome/41.0.2272.118 Safari/537.36",
+      "{}7.36{}) Chrome/42.0.2311.135 Safari/537.36",
+      "{}7.36{}) Chrome/44.0.2403.157 Safari/537.36",
+      "{}7.36{}) Chrome/60.0.3112.101 Safari/537.36",
+      "{}7.36{}) Chrome/64.0.3282.24 Safari/537.36",
+      "{}7.36{}) Chrome/69.0.3497.12 Safari/537.36",
+      "{}7.36{}) Chrome/72.0.3626.121 Safari/537.36",
+      "{}7.36{}) Chrome/76.0.3809.132 Safari/537.36",
+      "{}7.36{}) Chrome/77.0.3865.120 Safari/537.36",
+      "{}7.36{}) Chrome/80.0.3987.87 Safari/537.36",
+      "{}7.36{}) Chrome/81.0.4044.92 Safari/537.36",
+    ]
+    return uas[int(len(uas)*random.random())].format(
+      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/53",
+      " (KHTML, like Gecko"
+    )
 
-  uas = [
-    "{}7.36{}) Chrome/81.0.4044.92 Safari/537.36",
-    "{}7.36{}) Chrome/44.0.2403.157 Safari/537.36",
-    "{}7.36{}) Chrome/80.0.3987.87 Safari/537.36",
-    "{}7.36{}) Chrome/76.0.3809.132 Safari/537.36",
-    "{}7.36{}) Chrome/64.0.3282.24 Safari/537.36",
-    "{}7.36{}) Chrome/72.0.3626.121 Safari/537.36",
-    "{}4.24{}) Chrome/11.0.696.3 Safari/534.24",
-    "{}7.36{}) Chrome/42.0.2311.135 Safari/537.36",
-    "{}7.36{}; Google Web Preview) Chrome/27.0.1453 Safari/537.36",
-    "{}7.36{}) Chrome/77.0.3865.120 Safari/537.36",
-    "{}7.36{}; Google Web Preview) Chrome/41.0.2272.118 Safari/537.36",
-    "{}7.36{}) Chrome/69.0.3497.12 Safari/537.36",
-    "{}7.36{}) Chrome/60.0.3112.101 Safari/537.36"
-  ]
-  useragent = uas[int(len(uas)*random.random())].format(
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/53",
-    " (KHTML, like Gecko"
-  )
-  # default part of the header
-  headers = {
-    "accept": "application/json",
-    "user-agent": useragent,
-  }
+  try:
 
-  # if body for POST method is present than we add required field to the headers
-  if body:
-    headers["content-type"] = "application/json"
-  # and convert them to the JSON
-  jbody = json.dumps(body)
+    headers = {
+      "accept" : "application/json",
+      "user-agent" : _getUserAgent(),
+    }
+    # if it is not private method
+    if not keys:
 
-  if keys:
-    # _check_keys(error=True)
+      # in case of absent arguments it will be OK for the requests
+      return requests.get(DOMAIN+path, data=args, headers=headers).json()
+
+    # according to the documentation
+    if body:
+
+      headers["content-type"] = "application/json"
+    jbody = json.dumps(body)
+
+    # here keys are always present so the method is always private
     nonce = str(int(time.time() * 1000))
     headers["kun-nonce"] = nonce
     headers["kun-apikey"] = keys["public"]
     headers["kun-signature"] = hmac.new(
       keys["private"].encode("ascii"),
-      f"{DOMAIN[-4:]}{fullpath}{nonce}{jbody}".encode("ascii"),
+      f"{DOMAIN[-4:]}{path}{nonce}{jbody}".encode("ascii"),
       hashlib.sha384
     ).hexdigest()
 
-  try:
-    req = urllib.request.Request(DOMAIN + fullpath, jbody.encode(), headers,
-      method=("POST" if keys else "GET"))
-    json_resp = json.load(urllib.request.urlopen(req))
+    return requests.post(DOMAIN+path, data=jbody.encode(), headers=headers).json()
   except Exception as e:
-    print(f"{e}. But we will wait for a second and try again. Fail #{iteration}.")
-    time.sleep(0.1)
+
+    print(f"{e}. But we will try again. Failed on the iteration #{iteration}.")
     return _request(path=path, args=args, body=body, keys=keys, iteration=iteration+1)
-  else:
-    return json_resp
