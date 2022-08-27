@@ -591,5 +591,8 @@ def _request(path, args={}, body={}, keys=None, iteration=1):
     return requests.post(DOMAIN+path, data=jbody.encode(), headers=headers).json()
   except Exception as e:
 
-    print(f"{e}. But we will try again. Failed on the iteration #{iteration}.")
+    dt = int(10*random.random())
+    print(f"Failed on the iteration #{iteration} with error: {e}")
+    print(f"But we will wait {dt} s and try again.")
+    time.sleep(dt)
     return _request(path=path, args=args, body=body, keys=keys, iteration=iteration+1)
